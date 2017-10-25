@@ -13,7 +13,7 @@
 #import "SDImageCache.h"
 #import "UIImage+MWPhotoBrowser.h"
 
-#define PADDING                  10
+#define PADDING                  10.0f
 
 static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
 
@@ -516,6 +516,7 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
         NSUInteger index = page.index;
 		page.frame = [self frameForPageAtIndex:index];
         if (page.captionView) {
+            page.captionView.transform = CGAffineTransformIdentity;
             page.captionView.frame = [self frameForCaptionView:page.captionView atIndex:index];
         }
         if (page.selectedButton) {
@@ -774,8 +775,8 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
 	// Ignore padding as paging bounces encroach on that
 	// and lead to false page loads
 	CGRect visibleBounds = _pagingScrollView.bounds;
-	NSInteger iFirstIndex = (NSInteger)floorf((CGRectGetMinX(visibleBounds)+PADDING*2) / CGRectGetWidth(visibleBounds));
-	NSInteger iLastIndex  = (NSInteger)floorf((CGRectGetMaxX(visibleBounds)-PADDING*2-1) / CGRectGetWidth(visibleBounds));
+	NSInteger iFirstIndex = (NSInteger)floorf((CGRectGetMinX(visibleBounds)) / CGRectGetWidth(visibleBounds));
+	NSInteger iLastIndex  = (NSInteger)floorf((CGRectGetMaxX(visibleBounds)-1) / CGRectGetWidth(visibleBounds));
     if (iFirstIndex < 0) iFirstIndex = 0;
     if (iFirstIndex > [self numberOfPhotos] - 1) iFirstIndex = [self numberOfPhotos] - 1;
     if (iLastIndex < 0) iLastIndex = 0;
@@ -817,6 +818,7 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
             // Add caption
             MWCaptionView *captionView = [self captionViewForPhotoAtIndex:index];
             if (captionView) {
+                captionView.transform = CGAffineTransformIdentity;
                 captionView.frame = [self frameForCaptionView:captionView atIndex:index];
                 [_pagingScrollView addSubview:captionView];
                 page.captionView = captionView;
@@ -973,8 +975,6 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
 
 - (CGRect)frameForPagingScrollView {
     CGRect frame = self.view.bounds;// [[UIScreen mainScreen] bounds];
-    frame.origin.x -= PADDING;
-    frame.size.width += (2 * PADDING);
     return CGRectIntegral(frame);
 }
 
@@ -1067,7 +1067,7 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
 	// Hide controls when dragging begins
-	[self setControlsHidden:YES animated:YES permanent:NO];
+    [self setControlsHidden:YES animated:YES permanent:NO];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
@@ -1400,6 +1400,8 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
 // Fades all controls on iOS 5 & 6, and iOS 7 controls slide and fade
 - (void)setControlsHidden:(BOOL)hidden animated:(BOOL)animated permanent:(BOOL)permanent {
     
+    NSLog(@"controls begin ==========");
+    
     // Force visible
     if (![self numberOfPhotos] || _gridController || _alwaysShowControls)
         hidden = NO;
@@ -1443,16 +1445,12 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
         for (MWZoomingScrollView *page in _visiblePages) {
             if (page.captionView) {
                 MWCaptionView *v = page.captionView;
-                // Pass any index, all we're interested in is the Y
-                CGRect captionFrame = [self frameForCaptionView:v atIndex:0];
-                captionFrame.origin.x = v.frame.origin.x; // Reset X
-                v.frame = CGRectOffset(captionFrame, 0, animatonOffset);
+                v.transform = CGAffineTransformMakeTranslation(0, animatonOffset);
             }
         }
         
     }
     [UIView animateWithDuration:animationDuration animations:^(void) {
-        
         CGFloat alpha = hidden ? 0 : 1;
 
         // Nav bar slides up on it's own on iOS 7+
@@ -1467,11 +1465,7 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
         for (MWZoomingScrollView *page in _visiblePages) {
             if (page.captionView) {
                 MWCaptionView *v = page.captionView;
-                // Pass any index, all we're interested in is the Y
-                CGRect captionFrame = [self frameForCaptionView:v atIndex:0];
-                captionFrame.origin.x = v.frame.origin.x; // Reset X
-                if (hidden) captionFrame = CGRectOffset(captionFrame, 0, animatonOffset);
-                v.frame = captionFrame;
+                v.transform = hidden ? CGAffineTransformMakeTranslation(0, animatonOffset) : CGAffineTransformIdentity;
                 v.alpha = alpha;
             }
         }
@@ -1486,7 +1480,14 @@ static void * MWVideoPlayerObservation = &MWVideoPlayerObservation;
             }
         }
 
-    } completion:^(BOOL finished) {}];
+    } completion:^(BOOL finished) {
+        for (MWZoomingScrollView *page in _visiblePages) {
+            if (page.captionView) {
+                MWCaptionView *v = page.captionView;
+                v.transform = CGAffineTransformIdentity;
+            }
+        }
+    }];
     
 	// Control hiding timer
 	// Will cancel existing timer but only begin hiding if
